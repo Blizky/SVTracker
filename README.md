@@ -1,4 +1,3 @@
-Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
 # SVTracker
 
 A command-based SMAPI mod for tracking items you want to find. It saves each save file's wishlist and notes, then shows in-game HUD reminders when tracked items, quest items, Community Center bundle items, or timely birthday gifts enter your inventory.
@@ -64,4 +63,3 @@ This writes the compiled mod to `bin/Debug/net6.0`. To copy the build into the d
 ## License
 
 SVTracker is distributed under the MIT License. See [LICENSE](LICENSE).
-

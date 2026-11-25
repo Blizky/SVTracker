@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>SVTracker</AssemblyName>
+    <RootNamespace>StardewValleyItemTracker</RootNamespace>
+    <InstallMod Condition="'$(InstallMod)' == ''">true</InstallMod>
+    <GamePath Condition="'$(GamePath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Stardew Valley</GamePath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="StardewModdingAPI"><HintPath>$(GamePath)\StardewModdingAPI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Stardew Valley"><HintPath>$(GamePath)\Stardew Valley.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="StardewValley.GameData"><HintPath>$(GamePath)\StardewValley.GameData.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="SMAPI.Toolkit.CoreInterfaces"><HintPath>$(GamePath)\smapi-internal\SMAPI.Toolkit.CoreInterfaces.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="MonoGame.Framework"><HintPath>$(GamePath)\MonoGame.Framework.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="xTile"><HintPath>$(GamePath)\xTile.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <Target Name="CopyModFiles" AfterTargets="Build" Condition="'$(InstallMod)' == 'true'">
+    <PropertyGroup><ModOutput>$(GamePath)\Mods\$(AssemblyName)</ModOutput></PropertyGroup>
+    <MakeDir Directories="$(ModOutput)" />
+    <Copy SourceFiles="$(TargetPath);$(MSBuildProjectDirectory)\manifest.json" DestinationFolder="$(ModOutput)" />
+  </Target>
+</Project>

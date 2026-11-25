@@ -1,0 +1,9 @@
+{
+  "Name": "SVTracker",
+  "Author": "Blizky",
+  "Version": "0.1.0",
+  "Description": "Track items you want to find, with reminders for gifts, quests, birthdays, and Community Center bundles.",
+  "UniqueID": "LocalDev.StardewValleyItemTracker",
+  "EntryDll": "SVTracker.dll",
+  "MinimumApiVersion": "4.0.0"
+}
