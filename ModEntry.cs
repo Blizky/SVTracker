@@ -1,3 +1,4 @@
+Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -23,7 +24,6 @@ internal sealed class ModEntry : Mod
     private readonly Dictionary<string, List<BirthdayMatch>> birthdayWatch = new(StringComparer.Ordinal);
     private readonly List<CommunityBundleInfo> communityBundles = new();
     private readonly Queue<HudNotice> pendingHudNotices = new();
-    private readonly List<NotificationHistoryEntry> notificationHistory = new();
     private HudNotice? currentHudNotice;
     private float currentHudNoticeTimeLeft;
 
@@ -43,7 +43,6 @@ internal sealed class ModEntry : Mod
             this.lastNotificationByItem.Clear();
             this.birthdayWatch.Clear();
             this.communityBundles.Clear();
-            this.notificationHistory.Clear();
             this.pendingHudNotices.Clear();
             this.currentHudNotice = null;
             this.currentHudNoticeTimeLeft = 0;
@@ -52,8 +51,7 @@ internal sealed class ModEntry : Mod
         this.RegisterChatCommand("track", "Track an item: /track <item name>[, note]", this.TrackCommand);
         this.RegisterChatCommand("untrack", "Stop tracking an item or villager: /untrack <item name|NPC name>", this.UntrackCommand);
         this.RegisterChatCommand("tracking", "List items currently on your wishlist: /tracking", this.ListTrackedCommand);
-        this.RegisterChatCommand("tracked", "List items currently on your wishlist: /tracked", this.ListTrackedCommand);
-        this.RegisterChatCommand("check", "Check items loved by an NPC or active quest items: /check <NPC name|quests>", this.CheckCommand);
+        this.RegisterChatCommand("check", "Check an item's inventory count, a villager's loved items, or active quest items: /check <item|NPC name|quests>", this.CheckCommand);
     }
 
     private void RegisterChatCommand(string name, string help, StardewValley.Delegates.ChatCommandHandlerDelegate handler)
@@ -82,7 +80,6 @@ internal sealed class ModEntry : Mod
     private void OnSaveLoaded(object? sender, SaveLoadedEventArgs e)
     {
         this.lastNotificationByItem.Clear();
-        this.notificationHistory.Clear();
         this.pendingHudNotices.Clear();
         this.currentHudNotice = null;
         this.currentHudNoticeTimeLeft = 0;
@@ -324,11 +321,6 @@ internal sealed class ModEntry : Mod
             this.ShowCommandHelp(chat);
             return;
         }
-        if (input.Equals("history", StringComparison.OrdinalIgnoreCase) || input.Equals("h", StringComparison.OrdinalIgnoreCase))
-        {
-            this.ListNotificationHistory(chat);
-            return;
-        }
         if (input.Equals("reset", StringComparison.OrdinalIgnoreCase))
         {
             var clearedCount = this.data.Entries.Count;
@@ -366,11 +358,10 @@ internal sealed class ModEntry : Mod
         this.Reply(chat, "/untrack [item] - stop tracking item.");
         this.Reply(chat, "Use /track [item], [note] again to add or replace its note.");
         this.Reply(chat, "/tracking - show the list of tracked items and notes.");
-        this.Reply(chat, "/tracked - same as /tracking.");
-        this.Reply(chat, "/track history (or /track h) - show notifications from this save session.");
         this.Reply(chat, "/track reset - clear all saved tracked items and notes.");
-        this.Reply(chat, "/check quests (or /check q) - list active delivery quest items you have.");
+        this.Reply(chat, "/check [item name] - show how many you have in your inventory.");
         this.Reply(chat, "/check [NPC name] - list their loved items and your available count.");
+        this.Reply(chat, "/check quests (or /check q) - list active delivery quest items you have.");
     }
 
     private void CheckCommand(string[] command, ChatBox chat)
@@ -387,13 +378,18 @@ internal sealed class ModEntry : Mod
             this.ListAvailableQuestItems(chat);
             return;
         }
-        if (!this.TryFindVillager(input, out var villager, chat))
+        if (this.TryFindVillager(input, out var villager, chat))
         {
-            if (!string.IsNullOrWhiteSpace(input)) this.Reply(chat, $"Use /check [NPC name] or /check quests. Type /track help for commands.");
-            else this.Reply(chat, "Usage: /check [NPC name] or /check quests.");
+            this.ListVillagerLovedItems(villager, chat);
             return;
         }
-        this.ListVillagerLovedItems(villager, chat);
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            this.Reply(chat, "Usage: /check [item name], /check [NPC name], or /check quests.");
+            return;
+        }
+        if (this.TryFindItem(input, out var item, chat))
+            this.Reply(chat, $"You have {this.CountInventoryItem(item.Id)} {item.Name} in your inventory.");
     }
 
     private void UntrackCommand(string[] command, ChatBox chat)
@@ -506,20 +502,6 @@ internal sealed class ModEntry : Mod
             this.Reply(chat, $"- {item.Name} — {available.GetValueOrDefault(item.Id)} available");
     }
 
-    private void ListNotificationHistory(ChatBox chat)
-    {
-        if (!this.RequireLoadedSave(chat)) return;
-        if (this.notificationHistory.Count == 0)
-        {
-            this.Reply(chat, "No tracker notifications have appeared this session.");
-            return;
-        }
-
-        this.Reply(chat, $"Tracker notifications this session ({this.notificationHistory.Count}):");
-        foreach (var notification in this.notificationHistory)
-            this.Reply(chat, $"[{notification.GameTime}] {notification.Message}");
-    }
-
     private bool RequireLoadedSave(ChatBox chat)
     {
         if (Context.IsWorldReady) return true;
@@ -571,30 +553,28 @@ internal sealed class ModEntry : Mod
         var batch = e.SpriteBatch;
         var font = Game1.smallFont;
         var hasSubtitle = !string.IsNullOrWhiteSpace(this.currentHudNotice.Subtitle);
-        var maxWidth = Math.Max(160, Game1.viewport.Width - 48);
-        var title = Shorten(this.currentHudNotice.Title, font, maxWidth);
-        var subtitle = hasSubtitle ? Shorten(this.currentHudNotice.Subtitle!, font, maxWidth) : null;
+        var maxWidth = Math.Max(80, Math.Min(Game1.viewport.Width - 60, (Game1.viewport.Width - 48) * 0.5f));
+        var titleLines = WrapText(this.currentHudNotice.Title, font, maxWidth);
+        var subtitleLines = hasSubtitle ? WrapText(this.currentHudNotice.Subtitle!, font, maxWidth) : new List<string>();
+        var lines = titleLines.Concat(subtitleLines).ToList();
         var alpha = Math.Clamp(this.currentHudNoticeTimeLeft / this.currentHudNotice.FadeDurationMs, 0f, 1f);
         var color = (this.currentHudNotice.IsError ? new Color(255, 176, 0) : Color.LimeGreen) * alpha;
         var panelX = 18;
         var panelY = 74;
-        var contentWidth = (int)font.MeasureString(title).X;
-        if (subtitle is not null) contentWidth = Math.Max(contentWidth, (int)font.MeasureString(subtitle).X);
+        var contentWidth = (int)lines.Max(line => font.MeasureString(line).X);
         var panelWidth = Math.Min(Game1.viewport.Width - 36, contentWidth + 24);
-        var panel = new Rectangle(panelX, panelY, panelWidth, hasSubtitle ? 68 : 42);
+        var panelHeight = 16 + (lines.Count * 26);
+        var panel = new Rectangle(panelX, panelY, panelWidth, panelHeight);
         batch.Draw(Game1.staminaRect, panel, new Color(18, 47, 28) * (0.88f * alpha));
         batch.Draw(Game1.staminaRect, new Rectangle(panel.X, panel.Y, panel.Width, 2), Color.PaleGreen * alpha);
         batch.Draw(Game1.staminaRect, new Rectangle(panel.X, panel.Bottom - 2, panel.Width, 2), Color.PaleGreen * alpha);
         batch.Draw(Game1.staminaRect, new Rectangle(panel.X, panel.Y, 2, panel.Height), Color.PaleGreen * alpha);
         batch.Draw(Game1.staminaRect, new Rectangle(panel.Right - 2, panel.Y, 2, panel.Height), Color.PaleGreen * alpha);
-        var position = new Vector2(panelX + 12, panelY + 8);
-        batch.DrawString(font, title, position + new Vector2(2, 2), Color.Black * alpha);
-        this.DrawHighlightedString(batch, font, title, position, color, alpha, this.currentHudNotice.HighlightTerms);
-        if (subtitle is not null)
+        for (var i = 0; i < lines.Count; i++)
         {
-            var subtitlePosition = new Vector2(panelX + 12, panelY + 34);
-            batch.DrawString(font, subtitle, subtitlePosition + new Vector2(2, 2), Color.Black * alpha);
-            this.DrawHighlightedString(batch, font, subtitle, subtitlePosition, color, alpha, this.currentHudNotice.HighlightTerms);
+            var position = new Vector2(panelX + 12, panelY + 8 + (i * 26));
+            batch.DrawString(font, lines[i], position + new Vector2(2, 2), Color.Black * alpha);
+            this.DrawHighlightedString(batch, font, lines[i], position, color, alpha, this.currentHudNotice.HighlightTerms);
         }
     }
 
@@ -654,21 +634,25 @@ internal sealed class ModEntry : Mod
     {
         this.currentHudNotice = notice;
         this.currentHudNoticeTimeLeft = notice.DurationMs;
-        var hour = Game1.timeOfDay / 100;
-        var minute = Game1.timeOfDay % 100;
-        var clockHour = hour % 12;
-        if (clockHour == 0) clockHour = 12;
-        var gameTime = $"{Game1.currentSeason} {Game1.dayOfMonth}, {clockHour}:{minute:00} {(hour >= 12 ? "PM" : "AM")}";
-        var message = string.IsNullOrWhiteSpace(notice.Subtitle) ? notice.Title : $"{notice.Title} — {notice.Subtitle}";
-        this.notificationHistory.Add(new NotificationHistoryEntry(gameTime, message));
     }
 
-    private static string Shorten(string text, SpriteFont font, float maxWidth)
+    private static List<string> WrapText(string text, SpriteFont font, float maxWidth)
     {
-        var shown = text;
-        while (shown.Length > 12 && font.MeasureString(shown).X > maxWidth)
-            shown = shown[..^2] + "…";
-        return shown;
+        var lines = new List<string>();
+        var currentLine = "";
+        foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var candidate = currentLine.Length == 0 ? word : $"{currentLine} {word}";
+            if (currentLine.Length > 0 && font.MeasureString(candidate).X > maxWidth)
+            {
+                lines.Add(currentLine);
+                currentLine = word;
+            }
+            else currentLine = candidate;
+        }
+
+        if (currentLine.Length > 0) lines.Add(currentLine);
+        return lines;
     }
 
     private static bool TrySplitItemAndNote(string input, out string itemName, out string note, out bool hasNote)
@@ -765,7 +749,7 @@ internal sealed class ModEntry : Mod
         var hasActiveTracking = this.data.Entries.TryGetValue(id, out var entry) && entry.Active;
         var questNames = this.GetMatchingDeliveryQuestNames(id);
         var birthdayMatches = (this.birthdayWatch.GetValueOrDefault(id) ?? new List<BirthdayMatch>())
-            .Where(match => !this.HasGiftedNpcToday(match.NpcName))
+            .Where(match => match.Days != 0 || !this.HasGiftedNpcToday(match.NpcName))
             .ToList();
         var bundleNames = this.GetNeededBundleNames(item);
         if (!hasActiveTracking && questNames.Count == 0 && birthdayMatches.Count == 0 && bundleNames.Count == 0) return false;
@@ -781,15 +765,16 @@ internal sealed class ModEntry : Mod
             entry!.Active = false;
         }
         var note = hasActiveTracking && !string.IsNullOrWhiteSpace(entry!.Note) ? $" — {entry.Note}" : "";
-        var questText = questNames.Count > 0 ? $" Needed for quest {string.Join(", ", questNames)}." : "";
+        var questText = questNames.Count > 0 ? $"Needed for quest {string.Join(", ", questNames)}." : "";
         var birthdayText = this.FormatBirthdayReminder(item.DisplayName, birthdayMatches);
         var bundleText = bundleNames.Count switch
         {
             0 => "",
-            1 => $" Needed for {bundleNames[0]} bundle.",
-            _ => $" Needed for bundles: {string.Join(", ", bundleNames)}."
+            1 => $"Needed for {bundleNames[0]} bundle.",
+            _ => $"Needed for bundles: {string.Join(", ", bundleNames)}."
         };
-        var title = $"{item.DisplayName} found!{note}{questText}{bundleText}{birthdayText}";
+        var title = $"{item.DisplayName} found!{note}";
+        var subtitle = string.Join(" ", new[] { questText, bundleText, birthdayText }.Where(text => !string.IsNullOrWhiteSpace(text)));
         var duration = hasActiveTracking ? 10000f : questNames.Count > 0 ? 6000f : 4000f;
         var highlightTerms = new[] { item.DisplayName }
             .Concat(questNames)
@@ -797,7 +782,11 @@ internal sealed class ModEntry : Mod
             .Concat(birthdayMatches.Select(match => match.Name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        this.QueueHudNotice(new HudNotice(title, duration, HighlightTerms: highlightTerms));
+        this.QueueHudNotice(new HudNotice(
+            title,
+            duration,
+            Subtitle: string.IsNullOrWhiteSpace(subtitle) ? null : subtitle,
+            HighlightTerms: highlightTerms));
         Game1.playSound("newArtifact");
         return hasActiveTracking;
     }
@@ -817,11 +806,10 @@ internal sealed class ModEntry : Mod
         {
             var when = match.Days == 0 ? "today" : match.Days == 1 ? "tomorrow" : $"in {match.Days} days";
             var person = text.Length == 0
-                ? $" {match.Name} loves {itemName}; birthday {when}."
+                ? $"{match.Name} loves {itemName}; birthday {when}."
                 : $" {match.Name} loves it; birthday {when}.";
-            if (Game1.smallFont.MeasureString($"{itemName} found!{text}{person}").X > maxWidth)
+            if (text.Length > 0 && Game1.smallFont.MeasureString($"{text}{person}").X > maxWidth)
             {
-                if (text.Length == 0) return $" {match.Name} loves {itemName}; birthday {when}.";
                 break;
             }
             text += person;
@@ -884,6 +872,5 @@ internal sealed record CatalogItem(string Id, string Name);
 internal sealed record BirthdayMatch(string NpcName, string Name, int Days);
 internal sealed record CommunityBundleInfo(int Id, string Room, string Name, int RequiredSlots, List<CommunityBundleRequirement> Requirements);
 internal sealed record CommunityBundleRequirement(string ItemId, int MinimumQuality);
-internal sealed record NotificationHistoryEntry(string GameTime, string Message);
 internal sealed record QuestItemRequirement(string ItemId, string QuestName, int RequiredCount);
 internal sealed record HudNotice(string Title, float DurationMs, bool IsError = false, string? Subtitle = null, float FadeDurationMs = 500f, string[]? HighlightTerms = null);

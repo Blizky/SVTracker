@@ -1,3 +1,4 @@
+Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
 # SVTracker
 
 A command-based SMAPI mod for tracking items you want to find. It saves each save file's wishlist and notes, then shows in-game HUD reminders when tracked items, quest items, Community Center bundle items, or timely birthday gifts enter your inventory.
@@ -20,11 +21,11 @@ Enter these in the in-game chat while a save is loaded:
 | Command | What it does |
 | --- | --- |
 | `/track [item], [note]` | Add an item to the wishlist. A note after the comma is optional. Running it again with a note adds or replaces that note. |
+| `/check [item name]` | Show how many of that item you have in your inventory. |
 | `/check [NPC name]` | List that villager's loved items and how many you have in your inventory and scanned chests. |
 | `/check quests` or `/check q` | List active item-delivery quest items and how many you own in your inventory and scanned chests. |
 | `/untrack [item]` | Stop tracking the item and delete its note. |
-| `/tracking` or `/tracked` | List currently tracked items and their notes. |
-| `/track history` or `/track h` | List tracker HUD notifications from the current save session, oldest first. |
+| `/tracking` | List currently tracked items and their notes. |
 | `/track reset` | Clear all saved tracked items and notes for the current save. |
 | `/track help` | Show the command help in chat. |
 
@@ -36,13 +37,12 @@ Use the item's displayed name or qualified item ID. If a name matches multiple i
 - A newly acquired item needed for an active item-delivery quest shows a HUD reminder with the quest information.
 - A newly acquired item still required for an incomplete Community Center bundle shows a reminder with the room and bundle name. Already-filled slots and completed bundles are ignored.
 - Repeated finds of the same item within one second produce only one HUD notification.
-- Each in-game morning, the mod checks birthdays in the next five days for villagers whose friendship isn't at its heart cap. If you acquire an item one of them loves, it shows a four-second gift reminder, unless you've already given that villager a gift that day. The nearest birthday appears first, with other villagers included when space allows. Birthday watches refresh daily and aren't saved as wishlist entries.
+- Each in-game morning, the mod checks birthdays in the next five days for villagers whose friendship isn't at its heart cap. If you acquire an item one of them loves, it shows a four-second gift reminder. Giving a villager a gift only suppresses further reminders for that villager when their birthday is today; it doesn't suppress reminders for upcoming birthdays. The nearest birthday appears first, with other villagers included when space allows. Birthday watches refresh daily and aren't saved as wishlist entries.
 - On a villager's birthday morning, the mod checks the player's inventory and chests in loaded locations and farm buildings. If it finds one or more gifts that villager loves, it shows a ten-second reminder saying the birthday is today and listing them.
 - Notices appear in the upper-left HUD area. Item, villager, and quest names are highlighted in amber; other reminder text is green. Errors use amber text.
 
 Wishlist entries and notes are stored separately for each save file. Birthday reminders are temporary and rebuilt each morning.
 
-Notification history is kept in memory for the current save session only. It includes the full reminder text and in-game date/time, even when a long HUD message was shortened to fit on screen. It clears when returning to the title screen or loading another save.
 
 The “Now tracking” confirmation stays visible for five seconds and fades during its final second.
 
