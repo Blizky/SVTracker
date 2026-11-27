@@ -1,4 +1,3 @@
-Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -874,3 +873,4 @@ internal sealed record CommunityBundleInfo(int Id, string Room, string Name, int
 internal sealed record CommunityBundleRequirement(string ItemId, int MinimumQuality);
 internal sealed record QuestItemRequirement(string ItemId, string QuestName, int RequiredCount);
 internal sealed record HudNotice(string Title, float DurationMs, bool IsError = false, string? Subtitle = null, float FadeDurationMs = 500f, string[]? HighlightTerms = null);
+

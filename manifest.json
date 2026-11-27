@@ -1,4 +1,3 @@
-Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
 {
   "Name": "SVTracker",
   "Author": "Blizky",
@@ -8,3 +7,4 @@ Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' 
   "EntryDll": "SVTracker.dll",
   "MinimumApiVersion": "4.0.0"
 }
+
